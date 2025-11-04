@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TagFields, QueueEntry } from '../lib/types'
+import { createLocalAdapter } from '../lib/data'
 import { VideoPane } from './tagger/VideoPane'
 import { ControlsBar } from './tagger/ControlsBar'
 import { PbpPane } from './tagger/PbpPane'
@@ -27,6 +28,7 @@ const parseTime = (timeStr: string): number => {
 const ReactTaggerNative = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const adapterRef = useRef(createLocalAdapter())
 
   const [videoSrc, setVideoSrc] = useState<string | null>(null)
   const [currentVideoFile, setCurrentVideoFile] = useState<File | null>(null)
@@ -36,6 +38,7 @@ const ReactTaggerNative = () => {
   const [outTime, setOutTime] = useState('')
   const [excelRow, setExcelRow] = useState(2)
   const [excelActive, setExcelActive] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const [fields, setFields] = useState<TagFields>({
     gameNum: '1',
@@ -172,6 +175,10 @@ const ReactTaggerNative = () => {
       return
     }
 
+    if (isSaving) {
+      return // Prevent double-saves
+    }
+
     // Check for duplicate possession
     const duplicate = clips.find(
       (c) =>
@@ -188,104 +195,164 @@ const ReactTaggerNative = () => {
       if (!confirmOverwrite) return
     }
 
-    const opponentRaw = fields.opponent.trim()
-    const gameNum = parseInt(fields.gameNum, 10) || 0
-    const slug = (s: string) =>
-      s
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
+    setIsSaving(true)
 
-    const gameId = `G${gameNum}_${slug(opponentRaw)}`
-    const clipId = `${gameId}_Q${fields.quarter}P${fields.possession}_${Date.now().toString().slice(-6)}`
+    try {
+      const opponentRaw = fields.opponent.trim()
+      const gameNum = parseInt(fields.gameNum, 10) || 0
+      const slug = (s: string) =>
+        s
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '')
 
-    const clipData: QueueEntry = {
-      __clipId: clipId,
-      __gameId: gameId,
-      __opponent: opponentRaw,
-      __selected: true,
-      'Game #': fields.gameNum,
-      Location: fields.gameLocation,
-      Opponent: fields.opponent,
-      Quarter: fields.quarter,
-      'Possession #': fields.possession,
-      Situation: fields.situation,
-      'Offensive Formation': fields.offFormation,
-      'Play Name': fields.playName,
-      'Covered in Scout?': fields.scoutTag,
-      'Action Trigger': fields.actionTrigger,
-      'Action Type(s)': fields.actionTypes,
-      'Action Sequence': fields.actionSeq,
-      'Defensive Coverage': fields.coverage,
-      'Ball Screen Coverage': fields.ballScreenCov,
-      'Off-Ball Screen Coverage': fields.offBallScreenCov,
-      'Help/Rotation': fields.helpRotation,
-      'Defensive Disruption': fields.defDisruption,
-      'Defensive Breakdown': fields.defBreakdown,
-      'Play Result': fields.playResult,
-      'Paint Touches': fields.paintTouches,
-      'Shooter Designation': fields.shooterDesignation,
-      'Shot Location': fields.shotLocation,
-      'Shot Contest': fields.shotContest,
-      'Rebound Outcome': fields.reboundOutcome,
-      'Has Shot': 'No',
-      'Shot X': '',
-      'Shot Y': '',
-      'Shot Result': '',
-      Points: fields.points,
-      Notes: fields.notes,
-      'Start Time': inTime,
-      'End Time': outTime,
-      q: fields.quarter,
-      p: fields.possession,
-      start: inTime,
-      end: outTime,
-      play: fields.playName,
-      situation: fields.situation,
-      shooter: fields.shooterDesignation,
-      res: fields.playResult,
+      const opponentSlug = slug(opponentRaw)
+      const gameId = `G${gameNum}_${opponentSlug}`
+      const clipId = `${gameId}_Q${fields.quarter}P${fields.possession}_${Date.now().toString().slice(-6)}`
+
+      // Build queue entry for local display
+      const clipData: QueueEntry = {
+        __clipId: clipId,
+        __gameId: gameId,
+        __opponent: opponentRaw,
+        __selected: true,
+        'Game #': fields.gameNum,
+        Location: fields.gameLocation,
+        Opponent: fields.opponent,
+        Quarter: fields.quarter,
+        'Possession #': fields.possession,
+        Situation: fields.situation,
+        'Offensive Formation': fields.offFormation,
+        'Play Name': fields.playName,
+        'Covered in Scout?': fields.scoutTag,
+        'Action Trigger': fields.actionTrigger,
+        'Action Type(s)': fields.actionTypes,
+        'Action Sequence': fields.actionSeq,
+        'Defensive Coverage': fields.coverage,
+        'Ball Screen Coverage': fields.ballScreenCov,
+        'Off-Ball Screen Coverage': fields.offBallScreenCov,
+        'Help/Rotation': fields.helpRotation,
+        'Defensive Disruption': fields.defDisruption,
+        'Defensive Breakdown': fields.defBreakdown,
+        'Play Result': fields.playResult,
+        'Paint Touches': fields.paintTouches,
+        'Shooter Designation': fields.shooterDesignation,
+        'Shot Location': fields.shotLocation,
+        'Shot Contest': fields.shotContest,
+        'Rebound Outcome': fields.reboundOutcome,
+        'Has Shot': 'No',
+        'Shot X': '',
+        'Shot Y': '',
+        'Shot Result': '',
+        Points: fields.points,
+        Notes: fields.notes,
+        'Start Time': inTime,
+        'End Time': outTime,
+        q: fields.quarter,
+        p: fields.possession,
+        start: inTime,
+        end: outTime,
+        play: fields.playName,
+        situation: fields.situation,
+        shooter: fields.shooterDesignation,
+        res: fields.playResult,
+      }
+
+      // Build API payload matching database schema
+      const apiPayload = {
+        id: clipId,
+        filename: currentVideoPath || 'unknown.mp4',
+        path: currentVideoPath || '',
+        game_id: gameNum,
+        canonical_game_id: gameId,
+        canonical_clip_id: clipId,
+        opponent: opponentRaw,
+        opponent_slug: opponentSlug,
+        location: fields.gameLocation || '',
+        quarter: parseInt(fields.quarter, 10) || 1,
+        possession: parseInt(fields.possession, 10) || 1,
+        situation: fields.situation || '',
+        formation: fields.offFormation || '',
+        play_name: fields.playName || '',
+        scout_coverage: fields.scoutTag || '',
+        action_trigger: fields.actionTrigger || '',
+        action_types: fields.actionTypes || '',
+        action_sequence: fields.actionSeq || '',
+        coverage: fields.coverage || '',
+        ball_screen: fields.ballScreenCov || '',
+        off_ball_screen: fields.offBallScreenCov || '',
+        help_rotation: fields.helpRotation || '',
+        disruption: fields.defDisruption || '',
+        breakdown: fields.defBreakdown || '',
+        result: fields.playResult || '',
+        paint_touch: fields.paintTouches || '',
+        shooter: fields.shooterDesignation || '',
+        shot_location: fields.shotLocation || '',
+        contest: fields.shotContest || '',
+        rebound: fields.reboundOutcome || '',
+        points: parseInt(fields.points, 10) || 0,
+        has_shot: 'No',
+        shot_x: '',
+        shot_y: '',
+        shot_result: '',
+        notes: fields.notes || '',
+        start_time: inTime,
+        end_time: outTime,
+      }
+
+      // Save to API
+      try {
+        await adapterRef.current.saveClip(apiPayload as any)
+        console.log('✅ Clip saved to database:', clipId)
+      } catch (apiError) {
+        console.error('⚠️ Failed to save clip to API:', apiError)
+        alert(`Warning: Clip saved locally but failed to save to database.\n\n${apiError}`)
+      }
+
+      // Add to local queue
+      setClips((prev) => [...prev, clipData])
+
+      // Auto-increment Excel Row if active
+      if (excelActive) {
+        setExcelRow((prev) => prev + 1)
+      }
+
+      // Increment Possession #
+      const newPossession = String((parseInt(fields.possession, 10) || 0) + 1)
+
+      // Clear fields (keep Opponent, Quarter, Possession; reset Points to 0)
+      setFields((prev) => ({
+        ...prev,
+        possession: newPossession,
+        situation: '',
+        offFormation: '',
+        playName: '',
+        scoutTag: '',
+        actionTrigger: '',
+        actionTypes: '',
+        actionSeq: '',
+        coverage: '',
+        ballScreenCov: '',
+        offBallScreenCov: '',
+        helpRotation: '',
+        defDisruption: '',
+        defBreakdown: '',
+        playResult: '',
+        paintTouches: '',
+        shooterDesignation: '',
+        shotLocation: '',
+        shotContest: '',
+        reboundOutcome: '',
+        points: '0',
+        notes: '',
+      }))
+
+      // Clear IN/OUT
+      setInTime('')
+      setOutTime('')
+    } finally {
+      setIsSaving(false)
     }
-
-    setClips((prev) => [...prev, clipData])
-
-    // Auto-increment Excel Row if active
-    if (excelActive) {
-      setExcelRow((prev) => prev + 1)
-    }
-
-    // Increment Possession #
-    const newPossession = String((parseInt(fields.possession, 10) || 0) + 1)
-
-    // Clear fields (keep Opponent, Quarter, Possession; reset Points to 0)
-    setFields((prev) => ({
-      ...prev,
-      possession: newPossession,
-      situation: '',
-      offFormation: '',
-      playName: '',
-      scoutTag: '',
-      actionTrigger: '',
-      actionTypes: '',
-      actionSeq: '',
-      coverage: '',
-      ballScreenCov: '',
-      offBallScreenCov: '',
-      helpRotation: '',
-      defDisruption: '',
-      defBreakdown: '',
-      playResult: '',
-      paintTouches: '',
-      shooterDesignation: '',
-      shotLocation: '',
-      shotContest: '',
-      reboundOutcome: '',
-      points: '0',
-      notes: '',
-    }))
-
-    // Clear IN/OUT
-    setInTime('')
-    setOutTime('')
   }
 
   const handleToggleDrawer = () => {
@@ -390,7 +457,13 @@ const ReactTaggerNative = () => {
   }
 
   const handleAddToDashboard = () => {
-    alert('Add to Dashboard functionality coming soon...')
+    // Clips are automatically saved to the database via API, so they'll appear in the dashboard
+    const count = clips.filter((c) => c.__selected !== false).length
+    if (count === 0) {
+      alert('No clips selected. Select clips from the queue first.')
+      return
+    }
+    alert(`${count} clip${count > 1 ? 's' : ''} already saved to the database. They will appear in the Dashboard.`)
   }
 
   const handleToggleExcel = () => {
@@ -418,7 +491,7 @@ const ReactTaggerNative = () => {
             gridTemplateColumns: '1fr 370px',
             gridTemplateRows: 'auto minmax(36px, auto) auto',
             columnGap: '16px',
-            rowGap: '2px',
+            rowGap: '12px',
             minHeight: 'calc(100vh - 64px)',
             paddingBottom: '32px',
             maxWidth: 'calc(100vw - 80px)',
@@ -438,7 +511,7 @@ const ReactTaggerNative = () => {
           </section>
 
           {/* Controls Bar */}
-          <section style={{ gridArea: 'controls', transform: 'translateY(-35px)', zIndex: 10, position: 'relative' }}>
+          <section style={{ gridArea: 'controls', transform: 'translateY(-8px)', zIndex: 10, position: 'relative' }}>
             <ControlsBar
               videoRef={videoRef.current}
               inTime={inTime}
@@ -470,7 +543,7 @@ const ReactTaggerNative = () => {
           <section
             key="tags-pane-v2"
             className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
-            style={{ gridArea: 'tags', transform: 'translateY(-50px)', zIndex: 10, position: 'relative', padding: 0, overflow: 'hidden', maxHeight: '74px' }}
+            style={{ gridArea: 'tags', transform: 'translateY(-16px)', zIndex: 10, position: 'relative', padding: 0, overflow: 'hidden', maxHeight: '80px' }}
           >
             <TagsPane fields={fields} onChange={handleFieldChange} />
           </section>

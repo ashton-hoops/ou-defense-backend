@@ -208,8 +208,8 @@ export const PbpPane = ({ opponent }: PbpPaneProps) => {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden">
-      <div className="sticky top-0 z-[2] flex items-center justify-between rounded-lg border-b border-[#333] bg-[#191919] px-[0.7rem] py-[0.5rem]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="sticky top-0 z-[2] flex flex-shrink-0 items-center justify-between rounded-lg border-b border-[#333] bg-[#191919] px-[0.7rem] py-[0.5rem]">
         <h2 className="text-sm font-semibold tracking-wide">Tagging Tools</h2>
         <div className="flex gap-[6px] rounded-lg border border-[#2e2e2e] bg-[#161616] p-[3px]">
           <button

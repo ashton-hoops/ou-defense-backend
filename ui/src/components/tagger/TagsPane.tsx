@@ -8,7 +8,7 @@ type TagsPaneProps = {
 }
 
 const DATALIST_OPTIONS = {
-  location: ['Home', 'Away', 'Neutral'],
+  gameLocation: ['Home', 'Away', 'Neutral'],
   situation: ['Half Court', 'SLOB', 'BLOB', 'Transition', 'Early Offense', 'Half Court (ATO)'],
   scoutTag: ['Yes – Practiced', 'Partial – Similar Action', 'No – Not Practiced'],
   coverage: [
@@ -100,6 +100,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
 
   const handleInputFocus = (field: keyof TagFields, input: HTMLInputElement) => {
     if (field in DATALIST_OPTIONS) {
+      console.log('Opening picker for field:', field, 'Options:', DATALIST_OPTIONS[field as keyof typeof DATALIST_OPTIONS])
       setPickerState({ field, inputRef: input })
     }
   }
@@ -130,9 +131,19 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
     return DATALIST_OPTIONS[field as keyof typeof DATALIST_OPTIONS] || []
   }
 
+  const getInputProps = (field: keyof TagFields) => {
+    const hasOptions = field in DATALIST_OPTIONS
+    return hasOptions
+      ? {
+          onFocus: (e: React.FocusEvent<HTMLInputElement>) => handleInputFocus(field, e.target),
+          onClick: (e: React.MouseEvent<HTMLInputElement>) => handleInputFocus(field, e.target as HTMLInputElement),
+        }
+      : {}
+  }
+
   return (
-    <div className="overflow-x-auto overflow-y-hidden" style={{ transform: 'translateY(0)', marginBottom: '-16px' }}>
-      <div className="flex w-max flex-nowrap items-center gap-[10px] rounded-xl border border-[#2a2a2a] bg-[#191919]" style={{ padding: '4px 8px 4px 8px', transform: 'translateY(0)' }}>
+    <div className="overflow-x-auto overflow-y-hidden" style={{ height: '100%' }}>
+      <div className="flex w-max flex-nowrap items-center gap-[10px] rounded-xl border border-[#2a2a2a] bg-[#191919]" style={{ padding: '6px 10px', height: '100%' }}>
         {/* Game # */}
         <div className="tag-field flex min-w-[140px] flex-shrink-0 flex-col gap-0">
           <span className="tag-label text-[10px] text-[#e8e2d6] mb-0.5">Game #</span>
@@ -153,7 +164,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.gameLocation = el)}
             value={fields.gameLocation}
             onChange={(e) => onChange('gameLocation', e.target.value)}
-            onFocus={(e) => handleInputFocus('gameLocation', e.target as HTMLInputElement)}
+            {...getInputProps('gameLocation')}
             placeholder="Home / Away / Neutral"
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -204,7 +215,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.situation = el)}
             value={fields.situation}
             onChange={(e) => onChange('situation', e.target.value)}
-            onFocus={(e) => handleInputFocus('situation', e.target as HTMLInputElement)}
+            {...getInputProps('situation')}
             placeholder="Half Court / SLOB / Transition"
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -241,7 +252,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.scoutTag = el)}
             value={fields.scoutTag}
             onChange={(e) => onChange('scoutTag', e.target.value)}
-            onFocus={(e) => handleInputFocus('scoutTag', e.target as HTMLInputElement)}
+            {...getInputProps('scoutTag')}
             placeholder="Yes – Practiced / Partial / No"
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -290,7 +301,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.coverage = el)}
             value={fields.coverage}
             onChange={(e) => onChange('coverage', e.target.value)}
-            onFocus={(e) => handleInputFocus('coverage', e.target as HTMLInputElement)}
+            {...getInputProps('coverage')}
             placeholder="Man / 2-3 / 3-2 / 1-3-1 / 1-2-2 / Press"
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -303,7 +314,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.ballScreenCov = el)}
             value={fields.ballScreenCov}
             onChange={(e) => onChange('ballScreenCov', e.target.value)}
-            onFocus={(e) => handleInputFocus('ballScreenCov', e.target as HTMLInputElement)}
+            {...getInputProps('ballScreenCov')}
             placeholder="*(Drop/Stuck/Late) if nec."
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -316,7 +327,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.offBallScreenCov = el)}
             value={fields.offBallScreenCov}
             onChange={(e) => onChange('offBallScreenCov', e.target.value)}
-            onFocus={(e) => handleInputFocus('offBallScreenCov', e.target as HTMLInputElement)}
+            {...getInputProps('offBallScreenCov')}
             placeholder="*(Drop/Stuck/Late) if nec."
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -329,7 +340,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.helpRotation = el)}
             value={fields.helpRotation}
             onChange={(e) => onChange('helpRotation', e.target.value)}
-            onFocus={(e) => handleInputFocus('helpRotation', e.target as HTMLInputElement)}
+            {...getInputProps('helpRotation')}
             placeholder="Low-Man Help / X-Out Rotation"
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -342,7 +353,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.defDisruption = el)}
             value={fields.defDisruption}
             onChange={(e) => onChange('defDisruption', e.target.value)}
-            onFocus={(e) => handleInputFocus('defDisruption', e.target as HTMLInputElement)}
+            {...getInputProps('defDisruption')}
             placeholder="Denied Wing Entry, Deflected Pass"
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -367,7 +378,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.playResult = el)}
             value={fields.playResult}
             onChange={(e) => onChange('playResult', e.target.value)}
-            onFocus={(e) => handleInputFocus('playResult', e.target as HTMLInputElement)}
+            {...getInputProps('playResult')}
             placeholder="Missed FG / Live-Ball Turnover / ..."
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -380,7 +391,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.paintTouches = el)}
             value={fields.paintTouches}
             onChange={(e) => onChange('paintTouches', e.target.value)}
-            onFocus={(e) => handleInputFocus('paintTouches', e.target as HTMLInputElement)}
+            {...getInputProps('paintTouches')}
             placeholder="No Paint Touch / Drive / Post Touch / Cut"
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -405,7 +416,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.shotLocation = el)}
             value={fields.shotLocation}
             onChange={(e) => onChange('shotLocation', e.target.value)}
-            onFocus={(e) => handleInputFocus('shotLocation', e.target as HTMLInputElement)}
+            {...getInputProps('shotLocation')}
             placeholder="At Rim / Corner 3 / ..."
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -418,7 +429,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.shotContest = el)}
             value={fields.shotContest}
             onChange={(e) => onChange('shotContest', e.target.value)}
-            onFocus={(e) => handleInputFocus('shotContest', e.target as HTMLInputElement)}
+            {...getInputProps('shotContest')}
             placeholder="Open / Contested / Blocked"
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />
@@ -431,7 +442,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
             ref={(el) => (inputRefs.current.reboundOutcome = el)}
             value={fields.reboundOutcome}
             onChange={(e) => onChange('reboundOutcome', e.target.value)}
-            onFocus={(e) => handleInputFocus('reboundOutcome', e.target as HTMLInputElement)}
+            {...getInputProps('reboundOutcome')}
             placeholder="DREB / OREB / Other"
             className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
           />

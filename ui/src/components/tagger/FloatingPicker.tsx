@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 type FloatingPickerProps = {
   inputRef: HTMLInputElement | null
@@ -27,25 +28,25 @@ export const FloatingPicker = ({
 
     const updatePosition = () => {
       const rect = inputRef.getBoundingClientRect()
-      const margin = 6
-      const vh = window.innerHeight
-      const spaceBelow = vh - rect.bottom - margin
-      const spaceAbove = rect.top - margin
+      const spaceAbove = rect.top
 
-      const preferred = 110
-      const minHeight = 95
-      const buffer = 8
+      // Calculate height based on number of items
+      // Each item is ~36px (py-2 + text = ~36px), add some padding
+      const itemHeight = 36
+      const padding = 8
+      const maxVisibleItems = 4 // Show max 4 items before scrolling
+      const calculatedHeight = (filteredOptions.length * itemHeight) + padding
+      const maxHeight = (maxVisibleItems * itemHeight) + padding
 
-      const newDirection = spaceBelow >= spaceAbove - 20 ? 'below' : 'above'
-      const avail = newDirection === 'below' ? spaceBelow - buffer : spaceAbove - buffer
-      const h = Math.max(minHeight, Math.min(preferred, Math.max(0, avail)))
+      // Use actual height for <=4 items, otherwise cap at 4 items height
+      const dropdownHeight = Math.min(calculatedHeight, maxHeight, spaceAbove - 10)
 
-      setDirection(newDirection)
+      setDirection('above')
       setPosition({
-        top: newDirection === 'below' ? rect.bottom + margin : rect.top - margin - h,
+        top: rect.top - dropdownHeight, // Position so bottom edge touches top of input
         left: rect.left,
         width: Math.max(220, rect.width),
-        maxHeight: h,
+        maxHeight: dropdownHeight,
       })
     }
 
@@ -107,10 +108,24 @@ export const FloatingPicker = ({
 
   if (!isOpen) return null
 
-  return (
+  const handleWheel = (e: React.WheelEvent) => {
+    // Prevent page scroll when scrolling inside dropdown
+    e.stopPropagation()
+
+    const target = e.currentTarget
+    const isAtTop = target.scrollTop === 0
+    const isAtBottom = target.scrollTop + target.clientHeight >= target.scrollHeight
+
+    // Only prevent default if we're not at boundaries (to allow natural scroll feel)
+    if ((e.deltaY < 0 && !isAtTop) || (e.deltaY > 0 && !isAtBottom)) {
+      // Let the dropdown scroll naturally
+    }
+  }
+
+  const pickerElement = (
     <div
       ref={pickerRef}
-      className="fixed z-[9999] overflow-auto rounded-lg border border-[#24303b] bg-black shadow-lg"
+      className="fixed z-[9999] overflow-auto rounded-lg border border-[#3a3a3a] bg-[#1a1a1a] shadow-xl"
       style={{
         top: `${position.top}px`,
         left: `${position.left}px`,
@@ -118,12 +133,13 @@ export const FloatingPicker = ({
         maxHeight: `${position.maxHeight}px`,
       }}
       onMouseDown={(e) => e.preventDefault()}
+      onWheel={handleWheel}
     >
       {filteredOptions.length > 0 ? (
         filteredOptions.map((option, idx) => (
           <div
             key={idx}
-            className="cursor-pointer whitespace-nowrap px-2.5 py-2 text-sm hover:bg-[#18222c]"
+            className="cursor-pointer whitespace-nowrap px-2.5 py-2 text-sm text-[#faf9f6] hover:bg-[#18222c]"
             data-val={option}
             onClick={() => onSelect(option)}
           >
@@ -135,4 +151,6 @@ export const FloatingPicker = ({
       )}
     </div>
   )
+
+  return createPortal(pickerElement, document.body)
 }

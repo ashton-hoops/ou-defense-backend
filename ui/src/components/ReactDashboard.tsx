@@ -280,6 +280,8 @@ const ReactDashboard = ({ dataMode, onSelectGame }: ReactDashboardProps) => {
     return initial
   })
   const [selectedGames, setSelectedGames] = useState<Set<string>>(new Set())
+  const [selectedForExport, setSelectedForExport] = useState<Set<string>>(new Set())
+  const [exportMode, setExportMode] = useState(false)
   const [filters, setFilters] = useState<FilterState>(() => createEmptyFilterState())
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     formation: '',
@@ -448,7 +450,7 @@ const ReactDashboard = ({ dataMode, onSelectGame }: ReactDashboardProps) => {
 
   const filteredGames = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
-    return gameSummaries.filter((game) => {
+    const filtered = gameSummaries.filter((game) => {
       if (locationFilter !== 'all' && game.locationTag !== locationFilter) {
         return false
       }
@@ -459,12 +461,163 @@ const ReactDashboard = ({ dataMode, onSelectGame }: ReactDashboardProps) => {
         game.locationLabel.toLowerCase().includes(term)
       )
     })
+
+    // Sort by game number (extract number from ID like "G5_fgcu" -> 5)
+    return filtered.sort((a, b) => {
+      const numA = parseInt(a.id.replace(/\D/g, '')) || 0
+      const numB = parseInt(b.id.replace(/\D/g, '')) || 0
+      return numA - numB
+    })
   }, [gameSummaries, locationFilter, searchTerm])
 
   const totalClips = filteredClips.length
   const totalGames = gameSummaries.length
   const stopRateOverall = totalClips ? Math.round((stopCount / totalClips) * 100) : 0
   const breakdownRateOverall = totalClips ? Math.round((breakdownCount / totalClips) * 100) : 0
+
+  const exportToCSV = (clips: Clip[], filename: string) => {
+    if (!clips.length) {
+      alert('No clips to export')
+      return
+    }
+
+    // CSV Headers
+    const headers = [
+      'Game #',
+      'Opponent',
+      'Location',
+      'Quarter',
+      'Possession #',
+      'Situation',
+      'Offensive Formation',
+      'Play Name',
+      'Covered in Scout?',
+      'Action Trigger',
+      'Action Type(s)',
+      'Action Sequence',
+      'Defensive Coverage',
+      'Ball Screen Coverage',
+      'Off-Ball Screen Coverage',
+      'Help/Rotation',
+      'Defensive Disruption',
+      'Defensive Breakdown',
+      'Play Result',
+      'Paint Touches',
+      'Shooter Designation',
+      'Shot Location',
+      'Shot Contest',
+      'Rebound Outcome',
+      'Points',
+      'Notes',
+      'Start Time',
+      'End Time',
+    ]
+
+    // Build CSV rows
+    const rows = clips.map((clip) => [
+      clip.gameId || '',
+      clip.opponent || '',
+      clip.location || clip.gameLocation || '',
+      clip.quarter || '',
+      clip.possession || '',
+      clip.situation || '',
+      clip.formation || '',
+      clip.playName || '',
+      clip.scoutCoverage || '',
+      clip.actionTrigger || '',
+      clip.actionTypes || '',
+      clip.actionSequence || '',
+      clip.coverage || '',
+      clip.ballScreen || '',
+      clip.offBallScreen || '',
+      clip.helpRotation || '',
+      clip.disruption || '',
+      clip.breakdown || '',
+      clip.playResult || '',
+      clip.paintTouches || '',
+      clip.shooterDesignation || '',
+      clip.shotLocation || '',
+      clip.shotContest || '',
+      clip.rebound || '',
+      clip.points ?? '',
+      clip.notes || '',
+      clip.startTime || '',
+      clip.endTime || '',
+    ])
+
+    // Escape CSV values
+    const escapeCSV = (value: string | number) => {
+      const str = String(value)
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    }
+
+    // Build CSV content
+    const csvContent = [
+      headers.map(escapeCSV).join(','),
+      ...rows.map((row) => row.map(escapeCSV).join(',')),
+    ].join('\n')
+
+    // Download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', filename)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handleExportSelected = () => {
+    if (selectedForExport.size === 0) {
+      alert('Please select at least one game to export')
+      return
+    }
+
+    const selectedClips = filteredClips.filter((clip) => selectedForExport.has(clip.gameId || ''))
+    const gameIds = Array.from(selectedForExport).join('_')
+    exportToCSV(selectedClips, `OU_Defense_Selected_${new Date().toISOString().split('T')[0]}.csv`)
+
+    // Exit export mode and clear selections
+    setExportMode(false)
+    setSelectedForExport(new Set())
+  }
+
+  const handleCancelExport = () => {
+    setExportMode(false)
+    setSelectedForExport(new Set())
+  }
+
+  const handleToggleExportGame = (gameId: string) => {
+    setSelectedForExport((prev) => {
+      const next = new Set(prev)
+      if (next.has(gameId)) {
+        next.delete(gameId)
+      } else {
+        next.add(gameId)
+      }
+      return next
+    })
+  }
+
+  const handleToggleSelectAll = () => {
+    if (selectedForExport.size === filteredGames.length) {
+      setSelectedForExport(new Set())
+    } else {
+      setSelectedForExport(new Set(filteredGames.map((g) => g.id)))
+    }
+  }
+
+  const handleExportGame = (gameId: string) => {
+    const gameClips = filteredClips.filter((clip) => clip.gameId === gameId)
+    const game = gameSummaries.find((g) => g.id === gameId)
+    const opponent = game?.opponent || 'Unknown'
+    exportToCSV(gameClips, `OU_Defense_${gameId}_${opponent}_${new Date().toISOString().split('T')[0]}.csv`)
+  }
 
   return (
     <div className="react-dashboard">
@@ -479,6 +632,45 @@ const ReactDashboard = ({ dataMode, onSelectGame }: ReactDashboardProps) => {
           <button type="button" className="filter-btn" onClick={() => setFilterPanelOpen(true)}>
             Clip Filters{activeFilterCount ? ` (${activeFilterCount})` : ''}
           </button>
+          {!exportMode ? (
+            <button
+              type="button"
+              onClick={() => setExportMode(true)}
+              className="filter-btn ml-2"
+              title="Enter export mode to select games"
+            >
+              Export
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="filter-btn ml-2"
+                title={selectedForExport.size === filteredGames.length ? 'Deselect all games' : 'Select all games'}
+              >
+                {selectedForExport.size === filteredGames.length ? 'Deselect All' : 'Select All'}
+              </button>
+              <button
+                type="button"
+                onClick={handleExportSelected}
+                className="filter-btn ml-2"
+                title="Export selected games to CSV"
+                disabled={selectedForExport.size === 0}
+                style={{ opacity: selectedForExport.size === 0 ? 0.5 : 1 }}
+              >
+                Export Selected ({selectedForExport.size})
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelExport}
+                className="filter-btn ml-2"
+                title="Cancel export mode"
+              >
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -561,11 +753,24 @@ const ReactDashboard = ({ dataMode, onSelectGame }: ReactDashboardProps) => {
             return (
               <article
               key={game.id}
-              className="game-card"
+              className="game-card relative"
               onClick={() => onSelectGame?.(game.id)}
               tabIndex={0}
               role="button"
             >
+              {exportMode && (
+                <input
+                  type="checkbox"
+                  checked={selectedForExport.has(game.id)}
+                  onChange={(e) => {
+                    e.stopPropagation()
+                    handleToggleExportGame(game.id)
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute top-3 right-3 w-5 h-5 cursor-pointer z-10"
+                  title="Select for export"
+                />
+              )}
               <header className="game-header">
                 <p className="game-number">Game {game.id}</p>
                 <div className="game-opponent">

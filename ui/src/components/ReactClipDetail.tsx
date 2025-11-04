@@ -96,44 +96,48 @@ const ReactClipDetail = ({ clipId, dataMode, onBack, summary }: ReactClipDetailP
       title: 'Context & Identifiers',
       rows: [
         { label: 'Game #', value: activeClip?.gameId },
-        { label: 'Opponent', value: activeClip?.opponent },
-        { label: 'Quarter', value: summary?.game ?? activeClip?.gameNumber },
-        { label: 'Possession #', value: activeClip?.possessionResult ?? summary?.playResult },
-        { label: 'Situation', value: activeClip?.situation ?? activeClip?.playType ?? '—' },
         { label: 'Location', value: locationLabel },
+        { label: 'Opponent', value: activeClip?.opponent },
+        { label: 'Quarter', value: activeClip?.quarter ?? summary?.game ?? activeClip?.gameNumber },
+        { label: 'Possession #', value: activeClip?.possession ?? activeClip?.possessionResult ?? summary?.playResult },
+        { label: 'Situation', value: activeClip?.situation ?? activeClip?.playType },
       ],
     },
     {
       icon: '🎯',
       title: 'Play & Actions',
       rows: [
-        { label: 'Play Name', value: activeClip?.playName ?? activeClip?.playResult },
+        { label: 'Offensive Formation', value: activeClip?.formation },
+        { label: 'Play Name', value: activeClip?.playName },
+        { label: 'Covered in Scout?', value: activeClip?.scoutCoverage },
         { label: 'Action Trigger', value: activeClip?.actionTrigger },
         { label: 'Action Type(s)', value: activeClip?.actionTypes },
         { label: 'Action Sequence', value: activeClip?.actionSequence },
-        { label: 'Covered in Scout?', value: activeClip?.scoutCoverage },
       ],
     },
     {
       icon: '🛡️',
       title: 'Defensive Coverage',
       rows: [
-        { label: 'Coverage', value: activeClip?.coverage },
-        { label: 'Ball Screen', value: activeClip?.ballScreen },
-        { label: 'Off-Ball Screen', value: activeClip?.offBallScreen },
+        { label: 'Defensive Coverage', value: activeClip?.coverage },
+        { label: 'Ball Screen Coverage', value: activeClip?.ballScreen },
+        { label: 'Off-Ball Screen Coverage', value: activeClip?.offBallScreen },
         { label: 'Help/Rotation', value: activeClip?.helpRotation },
-        { label: 'Disruption', value: activeClip?.disruption },
+        { label: 'Defensive Disruption', value: activeClip?.disruption },
+        { label: 'Defensive Breakdown', value: activeClip?.breakdown },
       ],
     },
     {
       icon: '🏀',
       title: 'Shot Data',
       rows: [
-        { label: 'Shooter', value: activeClip?.shooterDesignation },
-        { label: 'Result', value: activeClip?.shotResult },
-        { label: 'Shot Location', value: formatShotLocation() },
-        { label: 'Contest', value: activeClip?.shotContest },
-        { label: 'Rebound', value: activeClip?.rebound },
+        { label: 'Play Result', value: activeClip?.result },
+        { label: 'Paint Touches', value: activeClip?.paintTouch },
+        { label: 'Shooter Designation', value: activeClip?.shooter },
+        { label: 'Shot Location', value: activeClip?.shotLocation },
+        { label: 'Shot Contest', value: activeClip?.contest },
+        { label: 'Rebound Outcome', value: activeClip?.rebound },
+        { label: 'Points', value: activeClip?.points },
       ],
     },
   ]
@@ -160,69 +164,147 @@ const ReactClipDetail = ({ clipId, dataMode, onBack, summary }: ReactClipDetailP
 
       {error && <div className="clip-detail__error">{error}</div>}
 
-      <section className="video-section">
-        {activeClip?.videoUrl ? (
-          <video controls src={activeClip.videoUrl} className="clip-video" />
-        ) : (
-          <div className="video-placeholder">No video reference found for this clip.</div>
-        )}
-      </section>
+      <div className="clip-detail__content">
+        <div className="clip-detail__main-column">
+          <section className="video-section">
+            {activeClip?.videoUrl ? (
+              <video controls src={activeClip.videoUrl} className="clip-video" />
+            ) : (
+              <div className="video-placeholder">No video reference found for this clip.</div>
+            )}
+          </section>
 
-      <section className="analytics-section">
-        <div className="analytics-header">
-          <span className="analytics-icon">📊</span>
-          <span>Analytics & Insights</span>
-        </div>
-        <div className="stats-summary">
-          <div className="stat-card">
-            <p className="stat-value">{points.toFixed(2)}</p>
-            <p className="stat-label">PPP Allowed</p>
-          </div>
-          <div className="stat-card">
-            <p className="stat-value">{stop ? '100%' : '0%'}</p>
-            <p className="stat-label">Stop Rate</p>
-          </div>
-          <div className="stat-card">
-            <p className="stat-value">{activeClip?.hasShot ? 'Shot' : 'No Shot'}</p>
-            <p className="stat-label">Shot Record</p>
-          </div>
-          <div className="stat-card">
-            <p className="stat-value">{activeClip?.shotResult ?? '—'}</p>
-            <p className="stat-label">Shot Result</p>
-          </div>
-        </div>
-        <div className="notes-box">
-          <p className="notes-label">Notes</p>
-          <p className="notes-value">{activeClip?.notes ?? 'No notes recorded.'}</p>
-        </div>
-      </section>
-
-      <section className="accordion-container">
-        {accordionSections.map((section) => (
-          <article key={section.title} className="accordion-section">
-            <input type="checkbox" className="accordion-toggle" id={section.title} />
-            <label className="accordion-header" htmlFor={section.title}>
-              <div className="accordion-title">
-                <span className="accordion-icon">{section.icon}</span>
-                {section.title}
-              </div>
-              <span className="accordion-chevron">▼</span>
-            </label>
-            <div className="accordion-content">
-              <table className="info-table">
-                <tbody>
-                  {section.rows.map((row) => (
-                    <tr key={row.label}>
-                      <td>{row.label}</td>
-                      <td>{row.value ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* Comprehensive Analytics below video */}
+          <section className="comprehensive-analytics">
+            <div className="analytics-header">
+              <span className="analytics-icon">📊</span>
+              <span>Comprehensive Analytics</span>
             </div>
-          </article>
-        ))}
-      </section>
+            <div className="stats-summary">
+              <div className="stat-card">
+                <p className="stat-value">{points.toFixed(2)}</p>
+                <p className="stat-label">PPP Allowed</p>
+              </div>
+              <div className="stat-card">
+                <p className="stat-value">{stop ? '100%' : '0%'}</p>
+                <p className="stat-label">Stop Rate</p>
+              </div>
+              <div className="stat-card">
+                <p className="stat-value">{activeClip?.hasShot ? 'Shot' : 'No Shot'}</p>
+                <p className="stat-label">Shot Record</p>
+              </div>
+              <div className="stat-card">
+                <p className="stat-value">{activeClip?.shotResult ?? '—'}</p>
+                <p className="stat-label">Shot Result</p>
+              </div>
+              <div className="stat-card">
+                <p className="stat-value">{activeClip?.breakdown ? 'Yes' : 'No'}</p>
+                <p className="stat-label">Breakdown</p>
+              </div>
+              <div className="stat-card">
+                <p className="stat-value">{activeClip?.disruption ?? '—'}</p>
+                <p className="stat-label">Disruption</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Context & Identifiers below analytics */}
+          <section className="context-section">
+            <div className="analytics-header">
+              <span className="analytics-icon">📋</span>
+              <span>Context & Identifiers</span>
+            </div>
+            <div className="detail-grid detail-grid--wide">
+              {accordionSections[0].rows.map((row) => (
+                <div key={row.label} className="detail-card">
+                  <p className="detail-value">{row.value ?? '—'}</p>
+                  <p className="detail-label">{row.label}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <aside className="analytics-sidebar">
+          {/* Analytics & Insights */}
+          <section className="sidebar-section">
+            <div className="analytics-header">
+              <span className="analytics-icon">📊</span>
+              <span>Analytics & Insights</span>
+            </div>
+            <div className="stats-summary">
+              <div className="stat-card">
+                <p className="stat-value">{points.toFixed(2)}</p>
+                <p className="stat-label">PPP Allowed</p>
+              </div>
+              <div className="stat-card">
+                <p className="stat-value">{stop ? '100%' : '0%'}</p>
+                <p className="stat-label">Stop Rate</p>
+              </div>
+              <div className="stat-card">
+                <p className="stat-value">{activeClip?.hasShot ? 'Shot' : 'No Shot'}</p>
+                <p className="stat-label">Shot Record</p>
+              </div>
+              <div className="stat-card">
+                <p className="stat-value">{activeClip?.shotResult ?? '—'}</p>
+                <p className="stat-label">Shot Result</p>
+              </div>
+            </div>
+            <div className="notes-box">
+              <p className="notes-label">Notes</p>
+              <p className="notes-value">{activeClip?.notes ?? 'No notes recorded.'}</p>
+            </div>
+          </section>
+
+          {/* Play & Actions */}
+          <section className="sidebar-section">
+            <div className="analytics-header">
+              <span className="analytics-icon">🎯</span>
+              <span>Play & Actions</span>
+            </div>
+            <div className="detail-grid">
+              {accordionSections[1].rows.map((row) => (
+                <div key={row.label} className="detail-card">
+                  <p className="detail-value">{row.value ?? '—'}</p>
+                  <p className="detail-label">{row.label}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Defensive Coverage */}
+          <section className="sidebar-section">
+            <div className="analytics-header">
+              <span className="analytics-icon">🛡️</span>
+              <span>Defensive Coverage</span>
+            </div>
+            <div className="detail-grid">
+              {accordionSections[2].rows.map((row) => (
+                <div key={row.label} className="detail-card">
+                  <p className="detail-value">{row.value ?? '—'}</p>
+                  <p className="detail-label">{row.label}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Shot Data */}
+          <section className="sidebar-section">
+            <div className="analytics-header">
+              <span className="analytics-icon">🏀</span>
+              <span>Shot Data</span>
+            </div>
+            <div className="detail-grid">
+              {accordionSections[3].rows.map((row) => (
+                <div key={row.label} className="detail-card">
+                  <p className="detail-value">{row.value ?? '—'}</p>
+                  <p className="detail-label">{row.label}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </aside>
+      </div>
     </div>
   )
 }
