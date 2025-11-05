@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TagFields, QueueEntry } from '../lib/types'
 import { createLocalAdapter } from '../lib/data'
 import { VideoPane } from './tagger/VideoPane'
 import { ControlsBar } from './tagger/ControlsBar'
 import { PbpPane } from './tagger/PbpPane'
+import { GameInfoBar } from './tagger/GameInfoBar'
 import { TagsPane } from './tagger/TagsPane'
 import { QueueDrawer } from './tagger/QueueDrawer'
 
 const STORAGE_KEY = 'ou_clips_v1'
+const TAGGER_STATE_KEY = 'ou_tagger_state_v1'
 
 const formatTime = (seconds: number): string => {
   const h = Math.floor(seconds / 3600)
@@ -29,6 +31,7 @@ const ReactTaggerNative = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const adapterRef = useRef(createLocalAdapter())
+  const savedTimeRef = useRef<number>(0)
 
   const [videoSrc, setVideoSrc] = useState<string | null>(null)
   const [currentVideoFile, setCurrentVideoFile] = useState<File | null>(null)
@@ -44,6 +47,7 @@ const ReactTaggerNative = () => {
     gameNum: '1',
     gameLocation: '',
     opponent: '',
+    gameScore: '',
     quarter: '1',
     possession: '1',
     situation: '',
@@ -71,6 +75,9 @@ const ReactTaggerNative = () => {
 
   const [clips, setClips] = useState<QueueEntry[]>([])
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [pbpText, setPbpText] = useState('')
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const [savedVideoTime, setSavedVideoTime] = useState<number>(0)
 
   // Load clips from localStorage on mount
   useEffect(() => {
@@ -95,6 +102,96 @@ const ReactTaggerNative = () => {
       console.error('Failed to save clips to localStorage:', err)
     }
   }, [clips])
+
+  // Load tagger state from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(TAGGER_STATE_KEY)
+      console.log('🔵 Loading tagger state:', stored)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        console.log('🔵 Parsed state:', parsed)
+        if (parsed.videoPath) {
+          console.log('🔵 Restoring videoPath:', parsed.videoPath)
+          setCurrentVideoPath(parsed.videoPath)
+        }
+        if (parsed.videoSrc) {
+          console.log('🔵 Restoring videoSrc:', parsed.videoSrc.substring(0, 50))
+          setVideoSrc(parsed.videoSrc)
+        } else if (parsed.videoPath && !parsed.videoPath.startsWith('blob:')) {
+          // Fallback: construct server URL from path if it's not a blob
+          console.log('🔵 Constructing server URL from path')
+          setVideoSrc(`http://localhost:8000/video?path=${encodeURIComponent(parsed.videoPath)}`)
+        }
+        if (parsed.videoTime !== undefined) {
+          console.log('🔵 Restoring videoTime:', parsed.videoTime)
+          setSavedVideoTime(parsed.videoTime)
+          savedTimeRef.current = parsed.videoTime
+        }
+        if (parsed.fields) {
+          console.log('🔵 Restoring fields:', parsed.fields)
+          setFields(parsed.fields)
+        }
+        if (parsed.pbpText) {
+          console.log('🔵 Restoring pbpText:', parsed.pbpText.substring(0, 50))
+          setPbpText(parsed.pbpText)
+        }
+        if (parsed.inTime !== undefined) {
+          console.log('🔵 Restoring inTime:', parsed.inTime)
+          setInTime(parsed.inTime)
+        }
+        if (parsed.outTime !== undefined) {
+          console.log('🔵 Restoring outTime:', parsed.outTime)
+          setOutTime(parsed.outTime)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load tagger state from localStorage:', err)
+    } finally {
+      // Mark initial load as complete to allow saves
+      setIsInitialLoad(false)
+    }
+  }, [])
+
+  // Save tagger state to localStorage when it changes
+  useEffect(() => {
+    // Skip saving during initial load to prevent race condition
+    if (isInitialLoad) {
+      console.log('⏭️ Skipping save during initial load')
+      return
+    }
+
+    const saveState = () => {
+      try {
+        const currentTime = videoRef.current?.currentTime || 0
+        const state = {
+          videoPath: currentVideoPath,
+          videoSrc: videoSrc,
+          videoTime: currentTime,
+          fields,
+          pbpText,
+          inTime,
+          outTime,
+        }
+        console.log('🟢 Saving tagger state:', { videoPath: currentVideoPath, videoSrc: videoSrc?.substring(0, 50), videoTime: currentTime, fieldsCount: Object.keys(fields).length, pbpTextLength: pbpText.length, inTime, outTime })
+        localStorage.setItem(TAGGER_STATE_KEY, JSON.stringify(state))
+      } catch (err) {
+        console.error('Failed to save tagger state to localStorage:', err)
+      }
+    }
+
+    // Save immediately when dependencies change
+    saveState()
+
+    // Also save periodically (every 2 seconds) to capture video time changes
+    const interval = setInterval(saveState, 2000)
+
+    return () => {
+      clearInterval(interval)
+      // Save one last time on cleanup
+      saveState()
+    }
+  }, [currentVideoPath, videoSrc, fields, pbpText, inTime, outTime, isInitialLoad])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -149,9 +246,16 @@ const ReactTaggerNative = () => {
     setVideoSrc(url)
   }
 
-  const handleVideoLoaded = (video: HTMLVideoElement) => {
+  const handleVideoLoaded = useCallback((video: HTMLVideoElement) => {
     videoRef.current = video
-  }
+
+    // Restore saved video time if available
+    if (savedTimeRef.current > 0) {
+      console.log('🔵 Seeking to saved time in handleVideoLoaded:', savedTimeRef.current)
+      video.currentTime = savedTimeRef.current
+      savedTimeRef.current = 0 // Reset so we don't keep seeking
+    }
+  }, [])
 
   const handleMarkIn = () => {
     if (videoRef.current && !isNaN(videoRef.current.currentTime)) {
@@ -166,7 +270,12 @@ const ReactTaggerNative = () => {
   }
 
   const handleFieldChange = (field: keyof TagFields, value: string) => {
-    setFields((prev) => ({ ...prev, [field]: value }))
+    console.log(`🐛 handleFieldChange called - field: "${field}", value: "${value}"`)
+    setFields((prev) => {
+      const updated = { ...prev, [field]: value }
+      console.log(`🐛 Updated fields:`, { [field]: updated[field] })
+      return updated
+    })
   }
 
   const handleSave = async () => {
@@ -219,6 +328,7 @@ const ReactTaggerNative = () => {
         'Game #': fields.gameNum,
         Location: fields.gameLocation,
         Opponent: fields.opponent,
+        'Game Score': fields.gameScore,
         Quarter: fields.quarter,
         'Possession #': fields.possession,
         Situation: fields.situation,
@@ -259,6 +369,14 @@ const ReactTaggerNative = () => {
       }
 
       // Build API payload matching database schema
+      console.log('🐛 DEBUG - Fields at save time:', {
+        offFormation: fields.offFormation,
+        coverage: fields.coverage,
+        ballScreenCov: fields.ballScreenCov,
+        offBallScreenCov: fields.offBallScreenCov,
+        defDisruption: fields.defDisruption,
+      })
+
       const apiPayload = {
         id: clipId,
         filename: currentVideoPath || 'unknown.mp4',
@@ -269,6 +387,7 @@ const ReactTaggerNative = () => {
         opponent: opponentRaw,
         opponent_slug: opponentSlug,
         location: fields.gameLocation || '',
+        game_score: fields.gameScore || '',
         quarter: parseInt(fields.quarter, 10) || 1,
         possession: parseInt(fields.possession, 10) || 1,
         situation: fields.situation || '',
@@ -483,13 +602,13 @@ const ReactTaggerNative = () => {
         className="hidden"
       />
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-6">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pt-2 pb-6">
         <div
           className="grid mx-auto"
           style={{
-            gridTemplateAreas: '"video pbp" "controls pbp" "tags tags"',
+            gridTemplateAreas: '"video pbp" "controls pbp" "gameinfo pbp" "tags tags"',
             gridTemplateColumns: '1fr 370px',
-            gridTemplateRows: 'auto minmax(36px, auto) auto',
+            gridTemplateRows: 'auto minmax(36px, auto) auto auto',
             columnGap: '16px',
             rowGap: '12px',
             minHeight: 'calc(100vh - 64px)',
@@ -511,7 +630,7 @@ const ReactTaggerNative = () => {
           </section>
 
           {/* Controls Bar */}
-          <section style={{ gridArea: 'controls', transform: 'translateY(-8px)', zIndex: 10, position: 'relative' }}>
+          <section style={{ gridArea: 'controls', transform: 'translateY(-15px)', zIndex: 10, position: 'relative' }}>
             <ControlsBar
               videoRef={videoRef.current}
               inTime={inTime}
@@ -536,14 +655,22 @@ const ReactTaggerNative = () => {
               maxHeight: 'calc(clamp(300px, calc(100vh - 240px), 560px) + 56px)',
             }}
           >
-            <PbpPane opponent={fields.opponent} />
+            <PbpPane opponent={fields.opponent} pbpText={pbpText} onPbpTextChange={setPbpText} />
           </aside>
+
+          {/* Game Info Bar */}
+          <section
+            key="game-info-bar"
+            style={{ gridArea: 'gameinfo', transform: 'translateY(-30px)', zIndex: 10, position: 'relative', padding: 0, overflow: 'hidden' }}
+          >
+            <GameInfoBar fields={fields} onChange={handleFieldChange} />
+          </section>
 
           {/* Tags Pane */}
           <section
             key="tags-pane-v2"
             className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
-            style={{ gridArea: 'tags', transform: 'translateY(-16px)', zIndex: 10, position: 'relative', padding: 0, overflow: 'hidden', maxHeight: '80px' }}
+            style={{ gridArea: 'tags', transform: 'translateY(-45px)', zIndex: 10, position: 'relative', padding: 0, overflow: 'hidden', maxHeight: '80px' }}
           >
             <TagsPane fields={fields} onChange={handleFieldChange} />
           </section>

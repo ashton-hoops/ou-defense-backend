@@ -1,0 +1,24 @@
+.DS_Store
+
+# Node / Vite
+ui/node_modules/
+ui/dist/
+
+# Python
+__pycache__/
+*.pyc
+
+# Local env/config
+ui/.env*
+
+# Logs / temp
+*.log
+ui/npm-debug.log*
+ui/yarn-debug.log*
+ui/pnpm-debug.log*
+
+# Clips cache
+ui/public/legacy/Clips/
+
+# Misc
+Thumbs.db

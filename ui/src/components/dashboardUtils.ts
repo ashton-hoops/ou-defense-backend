@@ -67,6 +67,20 @@ export const aggregateGames = (clips: Clip[]): GameAggregate[] => {
     if (detectStop(clip)) entry.stopCount += 1
     if (detectBreakdown(clip)) entry.breakdownCount += 1
 
+    // Update score if this clip has a valid gameScore
+    if (clip.gameScore && clip.gameScore !== '—' && clip.gameScore.trim() !== '') {
+      const scoreStr = clip.gameScore.trim()
+      // Try to parse format like "75-68 W" or "75-68 L"
+      const match = scoreStr.match(/^(.+?)\s+([WLwl])$/)
+      if (match) {
+        entry.score = match[1].trim()
+        entry.resultLabel = match[2].toUpperCase()
+      } else {
+        // If no W/L suffix, just use the score as-is
+        entry.score = scoreStr
+      }
+    }
+
     const { label: locationDisplay, tag: locationTag } = resolveLocationMeta(clip)
     const normalized = locationDisplay.toLowerCase()
     if (normalized && normalized !== '—') {

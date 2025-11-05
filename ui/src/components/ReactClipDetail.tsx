@@ -95,12 +95,12 @@ const ReactClipDetail = ({ clipId, dataMode, onBack, summary }: ReactClipDetailP
       icon: '📋',
       title: 'Context & Identifiers',
       rows: [
-        { label: 'Game #', value: activeClip?.gameId },
-        { label: 'Location', value: locationLabel },
+        { label: 'Game #', value: activeClip?.gameId ?? activeClip?.gameNumber },
+        { label: 'Location', value: activeClip?.location ?? activeClip?.locationDisplay ?? activeClip?.gameLocation },
         { label: 'Opponent', value: activeClip?.opponent },
-        { label: 'Quarter', value: activeClip?.quarter ?? summary?.game ?? activeClip?.gameNumber },
-        { label: 'Possession #', value: activeClip?.possession ?? activeClip?.possessionResult ?? summary?.playResult },
-        { label: 'Situation', value: activeClip?.situation ?? activeClip?.playType },
+        { label: 'Quarter', value: activeClip?.quarter },
+        { label: 'Possession #', value: activeClip?.possession },
+        { label: 'Situation', value: activeClip?.situation },
       ],
     },
     {
@@ -131,11 +131,11 @@ const ReactClipDetail = ({ clipId, dataMode, onBack, summary }: ReactClipDetailP
       icon: '🏀',
       title: 'Shot Data',
       rows: [
-        { label: 'Play Result', value: activeClip?.result },
-        { label: 'Paint Touches', value: activeClip?.paintTouch },
-        { label: 'Shooter Designation', value: activeClip?.shooter },
+        { label: 'Play Result', value: activeClip?.playResult ?? activeClip?.possessionResult },
+        { label: 'Paint Touches', value: activeClip?.paintTouches },
+        { label: 'Shooter Designation', value: activeClip?.shooterDesignation },
         { label: 'Shot Location', value: activeClip?.shotLocation },
-        { label: 'Shot Contest', value: activeClip?.contest },
+        { label: 'Shot Contest', value: activeClip?.shotContest },
         { label: 'Rebound Outcome', value: activeClip?.rebound },
         { label: 'Points', value: activeClip?.points },
       ],
@@ -156,6 +156,17 @@ const ReactClipDetail = ({ clipId, dataMode, onBack, summary }: ReactClipDetailP
         </div>
         <div className="clip-detail__actions">
           <span className={`status-pill status-pill--${status}`}>{connectionLabel[status]}</span>
+          <button
+            type="button"
+            onClick={() => {
+              console.log('Raw Clip Data:', activeClip)
+              alert('Check the browser console (F12) to see the raw clip data')
+            }}
+            className="clip-detail__back"
+            style={{ marginRight: '8px' }}
+          >
+            🐛 Debug Data
+          </button>
           <button type="button" onClick={onBack} className="clip-detail__back">
             ← Back to clips
           </button>
@@ -174,85 +185,63 @@ const ReactClipDetail = ({ clipId, dataMode, onBack, summary }: ReactClipDetailP
             )}
           </section>
 
-          {/* Comprehensive Analytics below video */}
+          {/* Analytics & Insights */}
           <section className="comprehensive-analytics">
             <div className="analytics-header">
               <span className="analytics-icon">📊</span>
-              <span>Comprehensive Analytics</span>
+              <span>Analytics & Insights</span>
             </div>
-            <div className="stats-summary">
+            <div className="stats-summary stats-summary--two-rows">
               <div className="stat-card">
-                <p className="stat-value">{points.toFixed(2)}</p>
-                <p className="stat-label">PPP Allowed</p>
+                <p className="stat-value">{activeClip?.points ?? 0}</p>
+                <p className="stat-label">Points Allowed</p>
               </div>
               <div className="stat-card">
-                <p className="stat-value">{stop ? '100%' : '0%'}</p>
-                <p className="stat-label">Stop Rate</p>
+                <p className="stat-value">{activeClip?.playResult ?? activeClip?.possessionResult ?? '—'}</p>
+                <p className="stat-label">Play Result</p>
               </div>
               <div className="stat-card">
-                <p className="stat-value">{activeClip?.hasShot ? 'Shot' : 'No Shot'}</p>
-                <p className="stat-label">Shot Record</p>
+                <p className="stat-value">{activeClip?.shooterDesignation ?? '—'}</p>
+                <p className="stat-label">Shooter Designation</p>
               </div>
               <div className="stat-card">
-                <p className="stat-value">{activeClip?.shotResult ?? '—'}</p>
-                <p className="stat-label">Shot Result</p>
+                <p className="stat-value">{activeClip?.shotQuality ?? '—'}</p>
+                <p className="stat-label">Shot Quality (0–100)</p>
               </div>
               <div className="stat-card">
-                <p className="stat-value">{activeClip?.breakdown ? 'Yes' : 'No'}</p>
-                <p className="stat-label">Breakdown</p>
+                <p className="stat-value">{activeClip?.shotContest ?? '—'}</p>
+                <p className="stat-label">Contest Level</p>
               </div>
               <div className="stat-card">
-                <p className="stat-value">{activeClip?.disruption ?? '—'}</p>
-                <p className="stat-label">Disruption</p>
+                <p className="stat-value">{activeClip?.defensiveScore ?? '—'}</p>
+                <p className="stat-label">Defensive Score (0–100)</p>
+              </div>
+              <div className="stat-card">
+                <p className="stat-value">{activeClip?.breakdown ?? 'None'}</p>
+                <p className="stat-label">Breakdown Type</p>
+              </div>
+              <div className="stat-card">
+                <p className="stat-value">{activeClip?.actionCount ?? activeClip?.actionDensity ?? '—'}</p>
+                <p className="stat-label">Action Count / Density</p>
               </div>
             </div>
           </section>
+        </div>
 
-          {/* Context & Identifiers below analytics */}
-          <section className="context-section">
+        <aside className="analytics-sidebar">
+          {/* Context & Identifiers */}
+          <section className="sidebar-section">
             <div className="analytics-header">
               <span className="analytics-icon">📋</span>
               <span>Context & Identifiers</span>
             </div>
-            <div className="detail-grid detail-grid--wide">
+            <div className="detail-grid detail-grid--two-col">
               {accordionSections[0].rows.map((row) => (
                 <div key={row.label} className="detail-card">
                   <p className="detail-value">{row.value ?? '—'}</p>
                   <p className="detail-label">{row.label}</p>
                 </div>
               ))}
-            </div>
-          </section>
-        </div>
-
-        <aside className="analytics-sidebar">
-          {/* Analytics & Insights */}
-          <section className="sidebar-section">
-            <div className="analytics-header">
-              <span className="analytics-icon">📊</span>
-              <span>Analytics & Insights</span>
-            </div>
-            <div className="stats-summary">
-              <div className="stat-card">
-                <p className="stat-value">{points.toFixed(2)}</p>
-                <p className="stat-label">PPP Allowed</p>
-              </div>
-              <div className="stat-card">
-                <p className="stat-value">{stop ? '100%' : '0%'}</p>
-                <p className="stat-label">Stop Rate</p>
-              </div>
-              <div className="stat-card">
-                <p className="stat-value">{activeClip?.hasShot ? 'Shot' : 'No Shot'}</p>
-                <p className="stat-label">Shot Record</p>
-              </div>
-              <div className="stat-card">
-                <p className="stat-value">{activeClip?.shotResult ?? '—'}</p>
-                <p className="stat-label">Shot Result</p>
-              </div>
-            </div>
-            <div className="notes-box">
-              <p className="notes-label">Notes</p>
-              <p className="notes-value">{activeClip?.notes ?? 'No notes recorded.'}</p>
             </div>
           </section>
 

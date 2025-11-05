@@ -144,24 +144,25 @@
   background: #141414;
   border: 1px solid #1f1f1f;
   border-radius: 12px;
-  padding: 0.6rem 0.7rem;
-  max-height: calc(100vh - 140px);
+  padding: 0.6rem 0.7rem 0.6rem 0.7rem;
+  max-height: calc(100vh - 185px);
   overflow-y: auto;
   overflow-x: hidden;
 }
 
 .analytics-sidebar::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .analytics-sidebar::-webkit-scrollbar-track {
-  background: #1a1a1a;
-  border-radius: 3px;
+  background: transparent;
+  margin: 4px 0;
 }
 
 .analytics-sidebar::-webkit-scrollbar-thumb {
   background: #333;
-  border-radius: 3px;
+  border-radius: 4px;
+  border: 2px solid #141414;
 }
 
 .analytics-sidebar::-webkit-scrollbar-thumb:hover {
@@ -187,8 +188,9 @@
   margin-bottom: 0.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding-bottom: 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
 }
 
 .analytics-icon {
@@ -206,13 +208,57 @@
   background: #141414;
   border: 1px solid #1f1f1f;
   border-radius: 12px;
-  padding: 0.75rem;
-  margin-top: 0.75rem;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.comprehensive-analytics .analytics-header {
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.3rem;
 }
 
 .comprehensive-analytics .stats-summary {
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.5rem;
+}
+
+.stats-summary--two-rows {
+  grid-template-columns: repeat(4, 1fr) !important;
+  grid-auto-flow: row;
+}
+
+.comprehensive-analytics .stat-card {
+  padding: 0.35rem 0.45rem;
+}
+
+.comprehensive-analytics .stat-value {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comprehensive-analytics .stat-label {
+  font-size: 0.55rem;
+  margin-top: 0.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comprehensive-analytics .notes-box {
+  padding: 0.35rem 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.comprehensive-analytics .notes-label {
+  font-size: 0.5rem;
+}
+
+.comprehensive-analytics .notes-value {
+  font-size: 0.7rem;
+  margin-top: 0.15rem;
 }
 
 .context-section {
@@ -279,8 +325,12 @@
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 0.5rem;
+}
+
+.detail-grid--two-col {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .detail-card {
@@ -288,7 +338,7 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
   padding: 0.5rem 0.55rem;
-  text-align: center;
+  text-align: left;
   min-height: 50px;
   display: flex;
   flex-direction: column;
@@ -297,19 +347,23 @@
 
 .detail-value {
   font-size: 0.85rem;
-  font-weight: 600;
-  color: #fdf9e8;
-  line-height: 1.3;
-  margin-bottom: 0.15rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.2;
+  margin-bottom: 0.25rem;
   word-break: break-word;
 }
 
 .detail-label {
   font-size: 0.55rem;
-  color: #94a3b8;
-  letter-spacing: 0.15em;
+  font-weight: 500;
+  color: #6b7280;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  line-height: 1.3;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (max-width: 768px) {

@@ -214,6 +214,44 @@ function App() {
     document.title = `OU WOMEN'S BASKETBALL — ${activeTabConfig.label}`
   }, [activeTabConfig.label])
 
+  // Global video keyboard shortcuts: spacebar (play/pause), arrow keys (seek)
+  useEffect(() => {
+    const handleGlobalKeydown = (e: KeyboardEvent) => {
+      // Find the first video element on the page
+      const video = document.querySelector('video') as HTMLVideoElement | null
+      if (!video) return
+
+      // Don't intercept if user is typing in an input or textarea
+      const target = e.target as HTMLElement
+      if (['INPUT', 'TEXTAREA'].includes(target.tagName)) return
+
+      switch (e.key) {
+        case ' ':
+          // Spacebar: play/pause
+          e.preventDefault()
+          if (video.paused) {
+            video.play()
+          } else {
+            video.pause()
+          }
+          break
+        case 'ArrowRight':
+          // Right arrow: +10 seconds
+          e.preventDefault()
+          video.currentTime = Math.min(video.currentTime + 10, video.duration)
+          break
+        case 'ArrowLeft':
+          // Left arrow: -10 seconds
+          e.preventDefault()
+          video.currentTime = Math.max(video.currentTime - 10, 0)
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleGlobalKeydown)
+    return () => document.removeEventListener('keydown', handleGlobalKeydown)
+  }, [])
+
   const handleSelect = (tabKey: TabKey) => {
     const tab = TABS.find((item) => item.key === tabKey)
     if (!tab) return
@@ -249,6 +287,20 @@ function App() {
 
   const navigateBackToDashboard = () => {
     window.location.hash = '#/react-dashboard'
+  }
+
+  const navigateToGameDetail = (gameId: string) => {
+    window.location.hash = `#/react-game/${encodeURIComponent(gameId)}`
+  }
+
+  const navigateBackToClipGame = () => {
+    // If we have a clip summary with a game number, navigate to that game
+    if (selectedClipSummary?.game) {
+      navigateToGameDetail(selectedClipSummary.game)
+    } else {
+      // Fallback to dashboard if no game info
+      navigateBackToDashboard()
+    }
   }
 
   const toggleDataMode = () => {
@@ -354,7 +406,7 @@ function App() {
                 key={`react-detail-${selectedClipId ?? 'none'}`}
                 clipId={selectedClipId}
                 dataMode={dataMode}
-                onBack={navigateBackToList}
+                onBack={navigateBackToClipGame}
                 onClipUpdated={handleClipUpdated}
                 summary={selectedClipSummary ?? undefined}
               />

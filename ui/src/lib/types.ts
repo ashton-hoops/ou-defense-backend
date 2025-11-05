@@ -9,6 +9,8 @@ export type Clip = {
   locationDisplay?: string
   gameLocation?: string
   gameScore?: string
+  quarter?: string | number
+  possession?: string | number
   situation?: string
   formation?: string
   playName?: string
@@ -35,6 +37,7 @@ export type Clip = {
   shotX?: number
   shotY?: number
   shotResult?: string
+  shotLocation?: string
   shotContest?: string
   shotQuality?: string
   paintTouches?: string
@@ -76,6 +79,7 @@ export type TagFields = {
   gameNum: string
   gameLocation: string
   opponent: string
+  gameScore: string
   quarter: string
   possession: string
   situation: string

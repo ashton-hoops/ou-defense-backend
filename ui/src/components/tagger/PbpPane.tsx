@@ -2,11 +2,18 @@ import { useState } from 'react'
 
 type PbpPaneProps = {
   opponent: string
+  pbpText?: string
+  onPbpTextChange?: (text: string) => void
 }
 
-export const PbpPane = ({ opponent }: PbpPaneProps) => {
+export const PbpPane = ({ opponent, pbpText = '', onPbpTextChange }: PbpPaneProps) => {
   const [activeTab, setActiveTab] = useState<'filter' | 'shot'>('filter')
-  const [pbpText, setPbpText] = useState('')
+
+  const handlePbpTextChange = (text: string) => {
+    if (onPbpTextChange) {
+      onPbpTextChange(text)
+    }
+  }
 
   const processPlayByPlay = () => {
     const raw = pbpText || ''
@@ -254,7 +261,7 @@ export const PbpPane = ({ opponent }: PbpPaneProps) => {
             </div>
             <textarea
               value={pbpText}
-              onChange={(e) => setPbpText(e.target.value)}
+              onChange={(e) => handlePbpTextChange(e.target.value)}
               placeholder="Paste ESPN Play-by-Play here..."
               className="min-h-0 flex-1 resize-none rounded-[10px] border border-[#841617] bg-black p-3 font-mono text-[11px] leading-[1.35] text-white"
             />

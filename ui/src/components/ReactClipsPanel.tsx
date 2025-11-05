@@ -8,6 +8,8 @@ import {
   toClipSummary,
   type ClipSummary,
 } from '../lib/data/transformers'
+import type { Clip } from '../lib/types'
+import ClipEditModal from './ClipEditModal'
 
 type ConnectionStatus = 'checking' | 'online' | 'offline'
 
@@ -19,7 +21,7 @@ type ReactClipsPanelProps = {
 
 const statusBadgeStyles: Record<ConnectionStatus, { dot: string; text: string }> = {
   checking: { dot: 'bg-amber-400', text: 'bg-amber-500/20 text-amber-100 border border-amber-400/40' },
-  online: { dot: 'bg-emerald-400', text: 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/40' },
+  online: { dot: 'bg-white/70', text: 'bg-white/10 text-white/90 border border-white/20' },
   offline: { dot: 'bg-rose-400', text: 'bg-rose-500/15 text-rose-200 border border-rose-500/40' },
 }
 
@@ -32,6 +34,9 @@ const ReactClipsPanel = ({ dataMode, onOpenClip, refreshKey = 0 }: ReactClipsPan
   const [searchTerm, setSearchTerm] = useState('')
   const [locationFilter, setLocationFilter] = useState<'all' | string>('all')
   const [shotFilter, setShotFilter] = useState<'all' | 'with' | 'without'>('all')
+  const [editingClip, setEditingClip] = useState<Clip | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [expandedGames, setExpandedGames] = useState<Set<string>>(new Set())
 
   const adapterFactory = useMemo(() => (dataMode === 'cloud' ? createCloudAdapter : createLocalAdapter), [dataMode])
 
@@ -145,6 +150,25 @@ const ReactClipsPanel = ({ dataMode, onOpenClip, refreshKey = 0 }: ReactClipsPan
     })
   }, [clips, searchTerm, locationFilter, shotFilter])
 
+  const clipsByGame = useMemo(() => {
+    const grouped = new Map<string, ClipSummary[]>()
+    filteredClips.forEach((clip) => {
+      const gameKey = clip.game || 'Unknown Game'
+      if (!grouped.has(gameKey)) {
+        grouped.set(gameKey, [])
+      }
+      grouped.get(gameKey)!.push(clip)
+    })
+    return Array.from(grouped.entries()).sort((a, b) => {
+      const numA = parseInt(a[0], 10)
+      const numB = parseInt(b[0], 10)
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB
+      }
+      return a[0].localeCompare(b[0])
+    })
+  }, [filteredClips])
+
   const totalCount = clips.length
   const displayedCount = filteredClips.length
   const filtersActive =
@@ -154,6 +178,99 @@ const ReactClipsPanel = ({ dataMode, onOpenClip, refreshKey = 0 }: ReactClipsPan
     setSearchTerm('')
     setLocationFilter('all')
     setShotFilter('all')
+  }
+
+  const toggleGame = (gameKey: string) => {
+    setExpandedGames((prev) => {
+      const next = new Set(prev)
+      if (next.has(gameKey)) {
+        next.delete(gameKey)
+      } else {
+        next.add(gameKey)
+      }
+      return next
+    })
+  }
+
+  const handleDeleteClip = async (clipId: string) => {
+    if (!confirm('Are you sure you want to delete this clip? This cannot be undone.')) {
+      return
+    }
+    try {
+      const adapter = adapterFactory()
+      await adapter.deleteClip(clipId)
+      const result = await adapter.listClips()
+      const summaries = result.items.map(toClipSummary)
+      setClips(summaries)
+      setIsEditModalOpen(false)
+      setEditingClip(null)
+    } catch (err) {
+      console.error('Failed to delete clip:', err)
+      alert('Failed to delete clip. Please try again.')
+    }
+  }
+
+  const handleEditClip = async (clipId: string) => {
+    try {
+      const adapter = adapterFactory()
+      const fullClip = await adapter.getClip(clipId)
+      if (fullClip) {
+        setEditingClip(fullClip)
+        setIsEditModalOpen(true)
+      }
+    } catch (err) {
+      console.error('Failed to load clip for editing:', err)
+      alert('Failed to load clip. Please try again.')
+    }
+  }
+
+  const handleSaveClip = async (clipId: string, updates: Partial<Clip>) => {
+    const adapter = adapterFactory()
+
+    console.log('[DEBUG] handleSaveClip received updates:', updates)
+
+    // Build update payload
+    const payload: any = {}
+    if (updates.gameId !== undefined) payload.game_id = updates.gameId
+    if (updates.location !== undefined) payload.location = updates.location
+    if (updates.opponent !== undefined) payload.opponent = updates.opponent
+    if (updates.playResult !== undefined) payload.result = updates.playResult
+    if (updates.notes !== undefined) payload.notes = updates.notes
+    if (updates.shooterDesignation !== undefined) payload.shooter = updates.shooterDesignation
+    if (updates.quarter !== undefined) payload.quarter = updates.quarter
+    if (updates.possession !== undefined) payload.possession = updates.possession
+    if (updates.situation !== undefined) payload.situation = updates.situation
+    if (updates.formation !== undefined) payload.formation = updates.formation
+    if (updates.playName !== undefined) payload.play_name = updates.playName
+    if (updates.scoutCoverage !== undefined) payload.scout_coverage = updates.scoutCoverage
+    if (updates.actionTrigger !== undefined) payload.action_trigger = updates.actionTrigger
+    if (updates.actionTypes !== undefined) payload.action_types = updates.actionTypes
+    if (updates.actionSequence !== undefined) payload.action_sequence = updates.actionSequence
+    if (updates.coverage !== undefined) payload.coverage = updates.coverage
+    if (updates.ballScreen !== undefined) payload.ball_screen = updates.ballScreen
+    if (updates.offBallScreen !== undefined) payload.off_ball_screen = updates.offBallScreen
+    if (updates.helpRotation !== undefined) payload.help_rotation = updates.helpRotation
+    if (updates.disruption !== undefined) payload.disruption = updates.disruption
+    if (updates.breakdown !== undefined) payload.breakdown = updates.breakdown
+    if (updates.playType !== undefined) payload.play_type = updates.playType
+    if (updates.possessionResult !== undefined) payload.possession_result = updates.possessionResult
+    if (updates.defenderDesignation !== undefined) payload.defender_designation = updates.defenderDesignation
+    if (updates.paintTouches !== undefined) payload.paint_touches = updates.paintTouches
+    if (updates.shotLocation !== undefined) payload.shot_location = updates.shotLocation
+    if (updates.shotContest !== undefined) payload.shot_contest = updates.shotContest
+    if (updates.shotResult !== undefined) payload.shot_result = updates.shotResult
+    if (updates.shotQuality !== undefined) payload.shot_quality = updates.shotQuality
+    if (updates.rebound !== undefined) payload.rebound = updates.rebound
+    if (updates.points !== undefined) payload.points = updates.points
+
+    console.log('[DEBUG] Sending payload to API:', payload)
+
+    await adapter.updateClip(clipId, payload)
+
+    // Refresh the clips list
+    const result = await adapter.listClips()
+    const summaries = result.items.map(toClipSummary)
+    setClips(summaries)
   }
 
   const statusStyles = statusBadgeStyles[status]
@@ -185,16 +302,16 @@ const ReactClipsPanel = ({ dataMode, onOpenClip, refreshKey = 0 }: ReactClipsPan
         {error && <span className="text-xs text-rose-300">{error}</span>}
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-3 rounded-xl border border-white/10 bg-[#131721] px-4 py-4 text-sm text-white">
+      <div className="mt-4 flex flex-wrap gap-3 rounded-xl border border-white/10 bg-[#151515] px-4 py-4 text-sm text-white">
         <input
-          className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-[#1b1f2a] px-3 py-2 text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-[#841617]"
+          className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-[#1a1a1a] px-3 py-2 text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-[#841617]"
           type="search"
           placeholder="Search clips (ID, opponent, result, notes…)"
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
         />
         <select
-          className="rounded-lg border border-white/10 bg-[#1b1f2a] px-3 py-2 text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-[#841617]"
+          className="rounded-lg border border-white/10 bg-[#1a1a1a] px-3 py-2 text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-[#841617]"
           value={locationFilter}
           onChange={(event) => setLocationFilter(event.target.value)}
         >
@@ -206,7 +323,7 @@ const ReactClipsPanel = ({ dataMode, onOpenClip, refreshKey = 0 }: ReactClipsPan
           ))}
         </select>
         <select
-          className="rounded-lg border border-white/10 bg-[#1b1f2a] px-3 py-2 text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-[#841617]"
+          className="rounded-lg border border-white/10 bg-[#1a1a1a] px-3 py-2 text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-[#841617]"
           value={shotFilter}
           onChange={(event) => setShotFilter(event.target.value as typeof shotFilter)}
         >
@@ -224,79 +341,123 @@ const ReactClipsPanel = ({ dataMode, onOpenClip, refreshKey = 0 }: ReactClipsPan
         </button>
       </div>
 
-      <div className="mt-4 flex-1 overflow-hidden rounded-xl border border-white/10 bg-[#131721]">
+      <div className="mt-4 flex-1 overflow-hidden rounded-xl border border-white/10 bg-[#151515]">
         <div className="h-full overflow-auto">
-          <table className="min-w-full border-collapse text-sm">
-            <thead className="sticky top-0 bg-[#1c2130] text-xs uppercase text-white/60">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold tracking-widest">Clip ID</th>
-                <th className="px-4 py-3 text-left font-semibold tracking-widest">Game</th>
-                <th className="px-4 py-3 text-left font-semibold tracking-widest">Date</th>
-                <th className="px-4 py-3 text-left font-semibold tracking-widest">Opponent</th>
-                <th className="px-4 py-3 text-left font-semibold tracking-widest">Location</th>
-                <th className="px-4 py-3 text-left font-semibold tracking-widest">Result</th>
-                <th className="px-4 py-3 text-left font-semibold tracking-widest">Shooter</th>
-                <th className="px-4 py-3 text-left font-semibold tracking-widest">Shot</th>
-                <th className="px-4 py-3 text-left font-semibold tracking-widest">Notes</th>
-                <th className="px-4 py-3 text-left font-semibold tracking-widest">Saved</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-white/60">
-                    Loading clips…
-                  </td>
-                </tr>
-              ) : filteredClips.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-white/60">
-                    {totalCount === 0
-                      ? 'No clips available. Save clips in the tagger to populate this list.'
-                      : 'No clips match the current filters.'}
-                  </td>
-                </tr>
-              ) : (
-                filteredClips.map((clip) => (
-                  <tr key={clip.id} className="border-b border-white/5 last:border-none hover:bg-white/5">
-                    <td className="px-4 py-3 font-mono text-xs text-white/70">
-                      {onOpenClip ? (
-                        <button
-                          type="button"
-                          onClick={() => onOpenClip(clip.id, clip)}
-                          className="underline-offset-2 hover:underline"
-                        >
-                          {clip.id}
-                        </button>
-                      ) : (
-                        clip.id
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-white/80">{clip.game}</td>
-                    <td className="px-4 py-3 text-white/70">{clip.gameDateDisplay}</td>
-                    <td className="px-4 py-3 text-white/90">{clip.opponent}</td>
-                    <td className="px-4 py-3 text-white/80">{clip.locationLabel}</td>
-                    <td className="px-4 py-3 text-white/80">{clip.playResult}</td>
-                    <td className="px-4 py-3 text-white/80">{clip.shooterDesignation}</td>
-                    <td className="px-4 py-3 text-white/80">
-                      {clip.hasShot ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-xs text-emerald-100">
-                          Shot
-                          <span className="font-medium text-emerald-200">{clip.shotResult}</span>
+          {loading ? (
+            <div className="px-4 py-8 text-center text-white/60">Loading clips…</div>
+          ) : clipsByGame.length === 0 ? (
+            <div className="px-4 py-8 text-center text-white/60">
+              {totalCount === 0
+                ? 'No clips available. Save clips in the tagger to populate this list.'
+                : 'No clips match the current filters.'}
+            </div>
+          ) : (
+            clipsByGame.map(([gameKey, gameClips]) => {
+              const isExpanded = expandedGames.has(gameKey)
+              const firstClip = gameClips[0]
+              return (
+                <div key={gameKey} className="border-b border-white/5 last:border-none">
+                  <button
+                    type="button"
+                    onClick={() => toggleGame(gameKey)}
+                    className="flex w-full items-center gap-4 bg-[#1a1a1a] px-4 py-3 text-left transition hover:bg-[#1f1f1f]"
+                  >
+                    <span className="text-lg text-white/40">{isExpanded ? '▼' : '▶'}</span>
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold uppercase tracking-widest text-white/90">
+                          Game {gameKey}
                         </span>
-                      ) : (
-                        <span className="text-white/50">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-white/70">{clip.notesPreview}</td>
-                    <td className="px-4 py-3 text-white/70">{clip.savedAtDisplay}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70">
+                          {gameClips.length} clip{gameClips.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-white/50">
+                        {firstClip.opponent} · {firstClip.locationLabel} · {firstClip.gameDateDisplay}
+                      </div>
+                    </div>
+                  </button>
+                  {isExpanded && (
+                    <table className="w-full border-collapse text-sm">
+                      <thead className="bg-[#181818] text-xs uppercase text-white/50">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-medium tracking-wider">Clip ID</th>
+                          <th className="px-4 py-2 text-left font-medium tracking-wider">Date</th>
+                          <th className="px-4 py-2 text-left font-medium tracking-wider">Result</th>
+                          <th className="px-4 py-2 text-left font-medium tracking-wider">Shooter</th>
+                          <th className="px-4 py-2 text-left font-medium tracking-wider">Shot</th>
+                          <th className="px-4 py-2 text-left font-medium tracking-wider">Notes</th>
+                          <th className="px-4 py-2 text-left font-medium tracking-wider">Saved</th>
+                          <th className="px-4 py-2 text-left font-medium tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gameClips.map((clip) => (
+                          <tr key={clip.id} className="border-b border-white/5 hover:bg-white/5">
+                            <td className="px-4 py-3 font-mono text-xs text-white/70">
+                              {onOpenClip ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenClip(clip.id, clip)}
+                                  className="underline-offset-2 hover:underline"
+                                >
+                                  {clip.id}
+                                </button>
+                              ) : (
+                                clip.id
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-white/70">{clip.gameDateDisplay}</td>
+                            <td className="px-4 py-3 text-white/80">{clip.playResult}</td>
+                            <td className="px-4 py-3 text-white/80">{clip.shooterDesignation}</td>
+                            <td className="px-4 py-3 text-white/80">
+                              {clip.hasShot ? (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-2 py-1 text-xs text-white/80">
+                                  Shot
+                                  <span className="font-medium text-white/90">{clip.shotResult}</span>
+                                </span>
+                              ) : (
+                                <span className="text-white/50">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-white/70">{clip.notesPreview}</td>
+                            <td className="px-4 py-3 text-white/70">{clip.savedAtDisplay}</td>
+                            <td className="px-4 py-3">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEditClip(clip.id)
+                                }}
+                                className="rounded-lg border border-white/12 bg-white/10 px-3 py-1.5 text-xs uppercase tracking-[0.15em] text-white transition hover:bg-white/16"
+                              >
+                                Edit
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )
+            })
+          )}
         </div>
       </div>
+
+      {editingClip && (
+        <ClipEditModal
+          clip={editingClip}
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false)
+            setEditingClip(null)
+          }}
+          onSave={handleSaveClip}
+          onDelete={handleDeleteClip}
+        />
+      )}
     </div>
   )
 }

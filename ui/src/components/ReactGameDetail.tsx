@@ -644,7 +644,7 @@ const ReactGameDetail = ({ gameId, dataMode, onBack, onOpenClip }: ReactGameDeta
                 </div>
                 <div className="clip-badges">
                   <span className="badge badge-quarter">
-                    Q{clip.gameNumber ?? clip.gameId} P{clip.possession ?? '—'}
+                    Q{clip.quarter ?? '—'} P{clip.possession ?? '—'}
                   </span>
                 </div>
               </div>

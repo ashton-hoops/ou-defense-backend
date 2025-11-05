@@ -80,6 +80,13 @@ export class LocalAdapter implements DataAdapter {
       throw new Error(`Failed to load clip ${id}`)
     }
     const payload = await response.json()
+    console.log('🐛 Raw clip data from API:', {
+      formation: payload.formation,
+      coverage: payload.coverage,
+      ball_screen: payload.ball_screen,
+      off_ball_screen: payload.off_ball_screen,
+      disruption: payload.disruption,
+    })
     return normalizeClip(payload)
   }
 
@@ -95,29 +102,15 @@ export class LocalAdapter implements DataAdapter {
     return clip
   }
 
-  async updateClip(
-    clipId: string,
-    payload: {
-      playResult?: string | null
-      notes?: string | null
-      shooterDesignation?: string | null
-    },
-  ): Promise<Clip> {
+  async updateClip(clipId: string, payload: Record<string, any>): Promise<Clip> {
     if (!clipId) throw new Error('clipId is required')
 
-    const body: Record<string, unknown> = {}
-    if (payload.playResult !== undefined) body.result = payload.playResult
-    if (payload.notes !== undefined) body.notes = payload.notes
-    if (payload.shooterDesignation !== undefined) body.shooter = payload.shooterDesignation
-    if (payload.startTime !== undefined) body.start_time = this.formatTime(payload.startTime)
-    if (payload.endTime !== undefined) body.end_time = this.formatTime(payload.endTime)
-    if (payload.videoStart !== undefined) body.video_start = payload.videoStart
-    if (payload.videoEnd !== undefined) body.video_end = payload.videoEnd
+    console.log('[DEBUG] local-adapter updateClip received payload:', payload)
 
     const response = await fetch(this.buildUrl(`/api/clip/${encodeURIComponent(clipId)}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {
@@ -196,8 +189,17 @@ export class LocalAdapter implements DataAdapter {
     return normalized
   }
 
-  async deleteClip(_id: string): Promise<void> {
-    // TODO: implement
+  async deleteClip(id: string): Promise<void> {
+    if (!id) throw new Error('Clip ID is required')
+
+    const response = await fetch(this.buildUrl(`/api/clip/${encodeURIComponent(id)}`), {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      throw new Error(`Failed to delete clip: ${response.status} ${detail}`)
+    }
   }
 
   async triggerExtraction(_payload: { clipId: string }): Promise<ExtractionJob> {

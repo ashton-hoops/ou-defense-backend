@@ -113,6 +113,7 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
     parts.push(value)
     const newValue = parts.join(', ')
 
+    console.log(`🐛 Picker selected for field "${pickerState.field}":`, newValue)
     onChange(pickerState.field, newValue)
 
     setTimeout(() => {
@@ -144,57 +145,6 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
   return (
     <div className="overflow-x-auto overflow-y-hidden" style={{ height: '100%' }}>
       <div className="flex w-max flex-nowrap items-center gap-[10px] rounded-xl border border-[#2a2a2a] bg-[#191919]" style={{ padding: '6px 10px', height: '100%' }}>
-        {/* Game # */}
-        <div className="tag-field flex min-w-[140px] flex-shrink-0 flex-col gap-0">
-          <span className="tag-label text-[10px] text-[#e8e2d6] mb-0.5">Game #</span>
-          <input
-            ref={(el) => (inputRefs.current.gameNum = el)}
-            type="number"
-            min="1"
-            value={fields.gameNum}
-            onChange={(e) => onChange('gameNum', e.target.value)}
-            className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none m-0"
-          />
-        </div>
-
-        {/* Location */}
-        <div className="tag-field flex min-w-[140px] flex-shrink-0 flex-col gap-0">
-          <span className="tag-label text-[10px] text-[#e8e2d6] mb-0.5">Location</span>
-          <input
-            ref={(el) => (inputRefs.current.gameLocation = el)}
-            value={fields.gameLocation}
-            onChange={(e) => onChange('gameLocation', e.target.value)}
-            {...getInputProps('gameLocation')}
-            placeholder="Home / Away / Neutral"
-            className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
-          />
-        </div>
-
-        {/* Opponent */}
-        <div className="tag-field flex flex-shrink-0 flex-col gap-0">
-          <span className="tag-label text-[10px] text-[#e8e2d6] mb-0.5">Opponent</span>
-          <input
-            ref={(el) => (inputRefs.current.opponent = el)}
-            value={fields.opponent}
-            onChange={(e) => onChange('opponent', e.target.value)}
-            className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
-          />
-        </div>
-
-        {/* Quarter */}
-        <div className="tag-field flex min-w-[140px] flex-shrink-0 flex-col gap-0">
-          <span className="tag-label text-[10px] text-[#e8e2d6] mb-0.5">Quarter</span>
-          <input
-            ref={(el) => (inputRefs.current.quarter = el)}
-            type="number"
-            min="1"
-            max="4"
-            value={fields.quarter}
-            onChange={(e) => onChange('quarter', e.target.value)}
-            className="tag-input w-fit min-w-[190px] max-w-[560px] rounded-lg border border-[#363636] bg-[#252525] px-2 py-1 text-sm text-[#faf9f6] focus:border-[#841617] focus:shadow-[0_0_0_2px_rgba(132,22,23,0.24)] focus:outline-none"
-          />
-        </div>
-
         {/* Possession # */}
         <div className="tag-field flex min-w-[140px] flex-shrink-0 flex-col gap-0">
           <span className="tag-label text-[10px] text-[#e8e2d6] mb-0.5">Possession #</span>
@@ -296,7 +246,9 @@ export const TagsPane = ({ fields, onChange }: TagsPaneProps) => {
 
         {/* Defensive Coverage */}
         <div className="tag-field flex flex-shrink-0 flex-col gap-0">
-          <span className="tag-label text-[10px] text-[#e8e2d6] mb-0.5">Defensive Coverage</span>
+          <span className="tag-label text-[10px] text-[#e8e2d6] mb-0.5">
+            Defensive Coverage {fields.coverage && `(value: "${fields.coverage}")`}
+          </span>
           <input
             ref={(el) => (inputRefs.current.coverage = el)}
             value={fields.coverage}
