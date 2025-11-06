@@ -1,13 +1,39 @@
-from flask import Flask, send_from_directory, jsonify, request
-import requests
-from flask_cors import CORS
-from pathlib import Path
+import os
 import json
+from pathlib import Path
 
-from analytics_db import fetch_clips, fetch_clip, upsert_clip, get_connection
+from flask import Flask, send_from_directory, jsonify, request
+from flask_cors import CORS
+import requests
+
+try:
+    from dotenv import load_dotenv  # type: ignore[import]
+except ImportError:  # pragma: no cover - optional dependency
+    load_dotenv = None
+
+if load_dotenv:
+    load_dotenv()
+
+from analytics_db import (
+    fetch_clips,
+    fetch_clip,
+    upsert_clip,
+    remove_clip,
+    update_clip_shot as db_update_clip_shot,
+    clear_clip_shot as db_clear_clip_shot,
+)
+
+# Try to import semantic search - graceful fallback if not available
+try:
+    from semantic_search import semantic_search, rebuild_embeddings, OPENAI_AVAILABLE
+    SEMANTIC_SEARCH_AVAILABLE = True
+except ImportError:
+    SEMANTIC_SEARCH_AVAILABLE = False
+    OPENAI_AVAILABLE = False
+    print("⚠️  Semantic search not available. Install: pip install openai numpy")
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=False)
 
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -27,7 +53,7 @@ def derive_video_url(filename, fallback=None):
             return f"/legacy/Clips/{name}"
     return None
 
-@app.route('/')
+@app.route('/dashboard')
 def dashboard():
     """Serve the main dashboard"""
     return send_from_directory(BASE_DIR, 'CLIP_DASHBOARD_UPDATED.html')
@@ -191,11 +217,7 @@ def api_clip_detail(clip_id):
             db_record = fetch_clip(clip_id)
             print(f"[DEBUG] DB record found: {db_record is not None}")
             if db_record:
-                conn = get_connection()
-                cursor = conn.cursor()
-                cursor.execute('DELETE FROM clips WHERE id = ?', (clip_id,))
-                conn.commit()
-                conn.close()
+                remove_clip(clip_id)
                 print(f"[DEBUG] Deleted from database")
 
             # Delete from metadata file if exists
@@ -398,8 +420,6 @@ def update_clip_shot(clip_id):
         return jsonify({"ok": True})
 
     try:
-        from analytics_db import get_connection
-
         if request.method == 'PUT':
             # Update shot data
             data = request.get_json()
@@ -409,15 +429,14 @@ def update_clip_shot(clip_id):
             shot_result = data.get('shot_result', '')
             shooter_designation = data.get('shooter_designation', '')
 
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE clips
-                SET has_shot = ?, shot_x = ?, shot_y = ?, shot_result = ?, shooter = ?
-                WHERE id = ?
-            """, (has_shot, shot_x, shot_y, shot_result, shooter_designation, clip_id))
-            conn.commit()
-            conn.close()
+            db_update_clip_shot(
+                clip_id=clip_id,
+                has_shot=has_shot,
+                shot_x=shot_x,
+                shot_y=shot_y,
+                shot_result=shot_result,
+                shooter_designation=shooter_designation,
+            )
 
             update_metadata_clip(clip_id, {
                 'has_shot': has_shot,
@@ -448,15 +467,7 @@ def update_clip_shot(clip_id):
 
         elif request.method == 'DELETE':
             # Delete shot data
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE clips
-                SET has_shot = 'No', shot_x = NULL, shot_y = NULL, shot_result = NULL
-                WHERE id = ?
-            """, (clip_id,))
-            conn.commit()
-            conn.close()
+            db_clear_clip_shot(clip_id)
 
             update_metadata_clip(clip_id, {
                 'has_shot': 'No',
@@ -559,6 +570,108 @@ def excel_append():
         return jsonify({'ok': True, 'status': data})
     except RuntimeError as exc:
         return jsonify({'ok': False, 'error': str(exc)}), 502
+
+
+@app.route('/api/search/semantic', methods=['POST'])
+def api_semantic_search():
+    """
+    AI-powered semantic search endpoint.
+    POST body: {"query": "find all Horns actions with drop coverage", "top_k": 20}
+    """
+    if not SEMANTIC_SEARCH_AVAILABLE:
+        return jsonify({
+            "error": "Semantic search not available. Install: pip install openai numpy",
+            "available": False
+        }), 501
+
+    if not OPENAI_AVAILABLE:
+        return jsonify({
+            "error": "OpenAI library not available",
+            "available": False
+        }), 501
+
+    try:
+        data = request.get_json(force=True) or {}
+        query = data.get('query', '').strip()
+        top_k = data.get('top_k', 20)
+
+        if not query:
+            return jsonify({"error": "Query parameter required"}), 400
+
+        results = semantic_search(query, top_k=top_k)
+
+        # Transform results to match frontend expectations
+        transformed = [transform_db_clip(clip) for clip in results]
+
+        return jsonify({
+            "ok": True,
+            "query": query,
+            "count": len(transformed),
+            "results": transformed
+        })
+
+    except ValueError as e:
+        return jsonify({"error": str(e), "available": False}), 400
+    except Exception as e:
+        print(f"❌ Semantic search error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/search/rebuild-embeddings', methods=['POST'])
+def api_rebuild_embeddings():
+    """
+    Rebuild all clip embeddings. Call this when clips are added/updated.
+    """
+    if not SEMANTIC_SEARCH_AVAILABLE:
+        return jsonify({
+            "error": "Semantic search not available",
+            "available": False
+        }), 501
+
+    try:
+        result = rebuild_embeddings()
+        if result['success']:
+            return jsonify({"ok": True, **result})
+        else:
+            return jsonify({"ok": False, **result}), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/search/status')
+def api_search_status():
+    """Check if semantic search is available."""
+    return jsonify({
+        "semantic_search_available": SEMANTIC_SEARCH_AVAILABLE,
+        "openai_available": OPENAI_AVAILABLE,
+        "api_key_set": bool(os.environ.get('OPENAI_API_KEY'))
+    })
+
+
+@app.get("/")
+def root_status():
+    return {"status": "OU Defensive Analytics API running"}, 200
+
+
+@app.get("/api/health")
+def api_health():
+    return {"ok": True}, 200
+
+
+@app.get("/api/__routes")
+def list_routes():
+    from flask import jsonify
+
+    routes = []
+    for rule in app.url_map.iter_rules():
+        routes.append({
+            "rule": str(rule),
+            "methods": sorted(list(rule.methods - {"HEAD", "OPTIONS"})),
+            "endpoint": rule.endpoint
+        })
+    return jsonify(sorted(routes, key=lambda r: r["rule"]))
 
 
 if __name__ == '__main__':
