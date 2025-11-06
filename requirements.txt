@@ -1,0 +1,11 @@
+Flask>=3.0,<4.0
+Flask-Cors>=4.0,<5.0
+gunicorn>=21.2
+python-dotenv>=1.0
+requests>=2.31,<3.0
+numpy>=1.26
+openai>=1.14
+openpyxl>=3.1
+psycopg[binary]==3.2.12
+pandas>=2.2
+SQLAlchemy>=2.0
