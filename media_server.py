@@ -14,14 +14,47 @@ except ImportError:  # pragma: no cover - optional dependency
 if load_dotenv:
     load_dotenv()
 
-from analytics_db import (
-    fetch_clips,
-    fetch_clip,
-    upsert_clip,
-    remove_clip,
-    update_clip_shot as db_update_clip_shot,
-    clear_clip_shot as db_clear_clip_shot,
-)
+import analytics_db as db_module
+
+fetch_clips = db_module.fetch_clips
+fetch_clip = db_module.fetch_clip
+upsert_clip = db_module.upsert_clip
+
+remove_clip = getattr(db_module, "remove_clip", None)
+if remove_clip is None:
+    def remove_clip(clip_id):
+        placeholder = "%s" if getattr(db_module, "USE_POSTGRES", False) else "?"
+        query = f"DELETE FROM clips WHERE id = {placeholder}"
+        with db_module.db_cursor() as cur:
+            cur.execute(query, (clip_id,))
+
+if hasattr(db_module, "update_clip_shot"):
+    db_update_clip_shot = db_module.update_clip_shot
+else:
+    def db_update_clip_shot(clip_id, has_shot, shot_x, shot_y, shot_result, shooter_designation):
+        placeholder = "%s" if getattr(db_module, "USE_POSTGRES", False) else "?"
+        query = f"""
+            UPDATE clips
+            SET has_shot = {placeholder}, shot_x = {placeholder}, shot_y = {placeholder},
+                shot_result = {placeholder}, shooter = {placeholder}
+            WHERE id = {placeholder}
+        """
+        params = (has_shot, shot_x, shot_y, shot_result, shooter_designation, clip_id)
+        with db_module.db_cursor() as cur:
+            cur.execute(query, params)
+
+if hasattr(db_module, "clear_clip_shot"):
+    db_clear_clip_shot = db_module.clear_clip_shot
+else:
+    def db_clear_clip_shot(clip_id):
+        placeholder = "%s" if getattr(db_module, "USE_POSTGRES", False) else "?"
+        query = f"""
+            UPDATE clips
+            SET has_shot = 'No', shot_x = NULL, shot_y = NULL, shot_result = NULL
+            WHERE id = {placeholder}
+        """
+        with db_module.db_cursor() as cur:
+            cur.execute(query, (clip_id,))
 
 # Try to import semantic search - graceful fallback if not available
 try:
@@ -684,3 +717,11 @@ if __name__ == '__main__':
     print(f"✋ Press Ctrl+C to stop\n")
 
     app.run(host='127.0.0.1', port=8000, debug=False)
+
+try:
+    from analytics_db import update_clip_shot as _update_clip_shot  # real impl if present
+    update_clip_shot = _update_clip_shot
+except Exception:
+    def update_clip_shot(*args, **kwargs):
+        # TODO: replace with real implementation from analytics_db when available
+        return None
